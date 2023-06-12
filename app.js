@@ -8,6 +8,7 @@ const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
 
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const LinkedInStrategy = require('passport-linkedin-oauth2').Strategy;
 
 const findOrCreate = require("mongoose-findorcreate");
 
@@ -33,7 +34,7 @@ mongoose.connect("mongodb://localhost:27017/userDB", {
     const userSchema = new mongoose.Schema({
         email: String,
         password: String,
-        googleId: String
+        socialId: String,
     });
 
     userSchema.plugin(passportLocalMongoose);
@@ -61,7 +62,7 @@ mongoose.connect("mongodb://localhost:27017/userDB", {
         callbackURL: "http://localhost:3000/auth/google/secrets"
     },
         function (accessToken, refreshToken, profile, cb) {
-            User.findOrCreate({ googleId: profile.id }, function (err, user) {
+            User.findOrCreate({ socialId: profile.id }, function (err, user) {
                 return cb(err, user);
             });
         }
@@ -75,12 +76,35 @@ mongoose.connect("mongodb://localhost:27017/userDB", {
         passport.authenticate('google', { scope: ['profile'] })
     );
 
-    app.get('x',
+    app.get('/auth/google/secrets',
         passport.authenticate('google', { failureRedirect: '/login' }),
         (req, res) => {
             res.redirect('/secrets');
         }
     );
+
+    passport.use(new LinkedInStrategy({
+        clientID: process.env.LINKEDIN_KEY,
+        clientSecret: process.env.LINKEDIN_SECRET,
+        callbackURL: "http://localhost:3000/auth/linkedin/secrets",
+        scope: ['r_emailaddress', 'r_liteprofile'],
+      }, 
+        function(accessToken, refreshToken, profile, cb) {
+            User.findOrCreate({ socialId: profile.id }, function (err, user) {
+                return cb(err, user);
+            });
+        }
+    ));
+
+    app.get('/auth/linkedin',
+        passport.authenticate('linkedin', { state: 'SOME STATE'  }),
+        function(req, res){
+    });
+
+    app.get('/auth/linkedin/secrets', passport.authenticate('linkedin', {
+        successRedirect: '/secrets',
+        failureRedirect: '/login'
+    }));
 
     app.get("/register", (req, res) => {
         res.render("register");
